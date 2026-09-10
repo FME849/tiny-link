@@ -1,0 +1,11 @@
+services:
+  mysql:
+    image: mysql:latest
+    container_name: tinylink_mysql
+    environment:
+      - MYSQL_DATABASE=tinylinkdb
+      - MYSQL_PASSWORD=secret
+      - MYSQL_ROOT_PASSWORD=verysecret
+      - MYSQL_USER=admin
+    ports:
+      - "3306:3306"
