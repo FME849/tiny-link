@@ -1,4 +1,4 @@
-package com.fme.tinylink;
+package com.fme.tinylink.models;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -7,7 +7,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 
 @Entity 
-public class TinyLinkModel {
+public class UrlData {
 
     @Id
     @GeneratedValue(strategy=GenerationType.AUTO)
@@ -22,7 +22,7 @@ public class TinyLinkModel {
     @Column(name="CLICK_COUNT")
     private Integer count;
 
-    public TinyLinkModel(String shortCode, String longURL) {
+    public UrlData(String shortCode, String longURL) {
         this.shortCode = shortCode;
         this.longURL = longURL;
         this.count = 0;
