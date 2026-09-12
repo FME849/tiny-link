@@ -7,6 +7,7 @@ import com.fme.tinylink.repository.UrlRepository;
 import com.fme.tinylink.snowflake.SnowflakeIdGenerator;
 
 import com.fme.tinylink.base62.Base62Encoder;
+import com.fme.tinylink.exception.ResourceNotFoundException;
 
 @Service
 public class UrlShortenService {
@@ -25,5 +26,10 @@ public class UrlShortenService {
         String shortCode = Base62Encoder.encode(nextId);
         UrlData model = new UrlData(shortCode, longUrl);
         return repository.save(model);
+    }
+
+    public UrlData getDataByShortCode(String shortCode) {
+        return repository.findByShortCode(shortCode)
+                .orElseThrow(() -> new ResourceNotFoundException("Short code not found"));
     }
 }
