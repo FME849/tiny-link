@@ -3,13 +3,20 @@ package com.fme.tinylink;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestTemplate;
+import org.testcontainers.containers.MySQLContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.fme.tinylink.dto.ShortenUrlRequest;
 import com.fme.tinylink.dto.ShortenUrlResponse;
@@ -18,8 +25,13 @@ import com.fme.tinylink.repository.UrlRepository;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
+@Testcontainers
 class UrlShortenControllerTest {
 	
+	@Container 
+	@ServiceConnection 
+	static MySQLContainer<?> mysql = new MySQLContainer<>("mysql:8.0");
+
 	@Autowired 
 	private UrlRepository urlRepository;
 
@@ -62,9 +74,17 @@ class UrlShortenControllerTest {
 		assertThat(getEntity.getHeaders().getLocation().toString()).isEqualTo(longUrl);
 	}
 
-	@Test
-	void missingOrIncorrectFormatLongUrlTest() {
-		String longUrl = "";
+	@ParameterizedTest
+	@NullAndEmptySource 
+	@ValueSource(strings = {
+		" ",
+		"example.com",
+		"ht://example.com",
+		"ftp://example.com",
+		"http://",
+		"random-string"
+	})
+	void invalidLongUrlTest(String longUrl) {
 		ShortenUrlRequest body = new ShortenUrlRequest(longUrl);
 		ResponseEntity<ShortenUrlResponse> postEntity = restTemplate.postForEntity(BASE_API_URL + "/url", body, ShortenUrlResponse.class);
 

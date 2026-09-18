@@ -1,0 +1,10 @@
+spring:
+  application:
+    name: tinylink
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+
+debug: true
