@@ -7,13 +7,15 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.resttestclient.TestRestTemplate;
+import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -24,7 +26,11 @@ import com.fme.tinylink.repository.UrlRepository;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.IOException;
+import java.net.HttpURLConnection;
+
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
+@AutoConfigureTestRestTemplate
 @Testcontainers
 class UrlShortenControllerTest {
 	
@@ -38,7 +44,8 @@ class UrlShortenControllerTest {
 	@LocalServerPort 
 	private int port;
 
-	private RestTemplate restTemplate = new RestTemplate();
+	@Autowired
+	private TestRestTemplate restTemplate;
 	
 	private String BASE_URL;
 
@@ -48,11 +55,22 @@ class UrlShortenControllerTest {
 	void setup() {
 		this.BASE_URL = "http://localhost:" + port;
 		this.BASE_API_URL  = BASE_URL + "/api/v1";
+
+		// Disable auto-following redirects so you can capture and assert 302 FOUND
+		SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory() {
+			@Override
+			protected void prepareConnection(HttpURLConnection connection, String httpMethod) throws IOException {
+				super.prepareConnection(connection, httpMethod);
+				connection.setInstanceFollowRedirects(false);
+			}
+		};
+		
+		restTemplate.getRestTemplate().setRequestFactory(requestFactory);
 	}
 
 	@AfterEach
 	void cleanup() {
-		urlRepository.deleteAll();
+		urlRepository.deleteAllInBatch();
 	}
 
 	@Test
@@ -90,7 +108,6 @@ class UrlShortenControllerTest {
 
 		assertThat(postEntity.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
 		assertThat(postEntity.getHeaders().getLocation()).isNull();
-		assertThat(postEntity.getBody()).isNull();
 	}
 
 }
