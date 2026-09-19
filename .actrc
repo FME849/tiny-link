@@ -1,0 +1,11 @@
+# Architecture for Apple Silicon
+--container-architecture linux/arm64
+
+# Mount host Docker socket for Docker-in-Docker / Testcontainers
+--container-daemon-socket /var/run/docker.sock
+
+# Route Testcontainers traffic to host
+--env TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal
+
+# Automatically clean up containers
+--rm
