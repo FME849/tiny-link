@@ -7,4 +7,9 @@ spring:
     username: admin
     password: secret
 
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+
 debug: true

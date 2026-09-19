@@ -26,19 +26,19 @@ public class UrlShortenController {
         this.services = services;
     }
 
-    @PostMapping("/api/v1/shorten")
+    @PostMapping("/api/v1/url")
     public ResponseEntity<ShortenUrlResponse> createShortUrl(@RequestBody ShortenUrlRequest request) {
         UrlData entity = services.createShortUrl(request.longUrl());
+        URI location = ServletUriComponentsBuilder
+            .fromCurrentContextPath()
+            .path("/{shortenCode}")
+            .buildAndExpand(entity.getShortCode())
+            .toUri();
         ShortenUrlResponse response = new ShortenUrlResponse(
             entity.getId(),
-            entity.getShortCode(),
+            location.toString(),
             entity.getLongURL()
         );
-        URI location = ServletUriComponentsBuilder
-                            .fromCurrentContextPath()
-                            .path("/{shortenCode}")
-                            .buildAndExpand(entity.getShortCode())
-                            .toUri();
         return ResponseEntity
                 .created(location)
                 .body(response);
