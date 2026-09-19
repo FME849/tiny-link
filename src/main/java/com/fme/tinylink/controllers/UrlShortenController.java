@@ -8,6 +8,8 @@ import com.fme.tinylink.dto.ShortenUrlResponse;
 import com.fme.tinylink.models.UrlData;
 import com.fme.tinylink.services.UrlShortenService;
 
+import jakarta.validation.Valid;
+
 import java.net.URI;
 
 import org.springframework.http.HttpStatus;
@@ -27,7 +29,7 @@ public class UrlShortenController {
     }
 
     @PostMapping("/api/v1/url")
-    public ResponseEntity<ShortenUrlResponse> createShortUrl(@RequestBody ShortenUrlRequest request) {
+    public ResponseEntity<ShortenUrlResponse> createShortUrl(@Valid @RequestBody ShortenUrlRequest request) {
         UrlData entity = services.createShortUrl(request.longUrl());
         URI location = ServletUriComponentsBuilder
             .fromCurrentContextPath()
