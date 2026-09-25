@@ -2,7 +2,7 @@ package com.fme.tinylink.services;
 
 import org.springframework.stereotype.Service;
 
-import com.fme.tinylink.models.UrlData;
+import com.fme.tinylink.models.UrlMapping;
 import com.fme.tinylink.repository.UrlRepository;
 import com.fme.tinylink.snowflake.SnowflakeIdGenerator;
 
@@ -19,16 +19,16 @@ public class UrlShortenService {
         this.idGenerator = idGenerator;
     }
 
-    public UrlData createShortUrl(String longUrl) {
+    public UrlMapping createShortUrl(String longUrl) {
         idGenerator.setDataCenterId(1);
         idGenerator.setWorkerId(1);
         Long nextId = idGenerator.nextId();
         String shortCode = Base62Encoder.encode(nextId);
-        UrlData model = new UrlData(shortCode, longUrl);
+        UrlMapping model = new UrlMapping(shortCode, longUrl);
         return repository.save(model);
     }
 
-    public UrlData getDataByShortCode(String shortCode) {
+    public UrlMapping getDataByShortCode(String shortCode) {
         return repository.findByShortCode(shortCode)
                 .orElseThrow(() -> new ResourceNotFoundException("Short code not found"));
     }
