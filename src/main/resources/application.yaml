@@ -12,4 +12,8 @@ spring:
       ddl-auto: validate
     show-sql: true
 
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
 debug: true
