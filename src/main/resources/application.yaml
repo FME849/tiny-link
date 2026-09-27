@@ -3,17 +3,21 @@ spring:
     name: tinylink
 
   datasource:
-    url: jdbc:mysql://localhost:3306/tinylinkdb
-    username: admin
-    password: secret
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/tinylinkdb}
+    username: ${SPRING_DATASOURCE_USERNAME:admin}
+    password: ${SPRING_DATASOURCE_PASSWORD:secret}
+    driver-class-name: com.mysql.cj.jdbc.Driver
 
   jpa:
     hibernate:
-      ddl-auto: validate
-    show-sql: true
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
+    show-sql: false
 
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
 
-debug: true
+server:
+  port: 8080
+
+debug: false
