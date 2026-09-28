@@ -5,7 +5,7 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import com.fme.tinylink.dto.ShortenUrlRequest;
 import com.fme.tinylink.dto.ShortenUrlResponse;
-import com.fme.tinylink.models.UrlData;
+import com.fme.tinylink.models.UrlMapping;
 import com.fme.tinylink.services.UrlShortenService;
 
 import jakarta.validation.Valid;
@@ -30,14 +30,13 @@ public class UrlShortenController {
 
     @PostMapping("/api/v1/url")
     public ResponseEntity<ShortenUrlResponse> createShortUrl(@Valid @RequestBody ShortenUrlRequest request) {
-        UrlData entity = services.createShortUrl(request.longUrl());
+        UrlMapping entity = services.createShortUrl(request.longUrl());
         URI location = ServletUriComponentsBuilder
             .fromCurrentContextPath()
             .path("/{shortenCode}")
             .buildAndExpand(entity.getShortCode())
             .toUri();
         ShortenUrlResponse response = new ShortenUrlResponse(
-            entity.getId(),
             location.toString(),
             entity.getLongURL()
         );
@@ -48,7 +47,7 @@ public class UrlShortenController {
     
     @GetMapping("/{shortCode}")
     public ResponseEntity<Void> redirectToUrl(@PathVariable String shortCode) {
-        UrlData entity = services.getDataByShortCode(shortCode);
+        UrlMapping entity = services.getDataByShortCode(shortCode);
         return ResponseEntity
                 .status(HttpStatus.FOUND)
                 .header("Location", entity.getLongURL())
