@@ -23,4 +23,12 @@ class RootControllerTest extends AbstractIntegrationTest {
 
 		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
 	}
+
+	@Test
+	void methodNotAllowedOnRootTest() {
+		ResponseEntity<String> response = restTemplate.postForEntity(BASE_URL + "/", null, String.class);
+
+		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.METHOD_NOT_ALLOWED);
+		assertThat(response.getBody()).contains("Method Not Allowed");
+	}
 }

@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
@@ -58,7 +59,7 @@ public class GlobalExceptionHandler {
         return problem;
     }
 
-    // 3. Database conflict (e.g., duplicate shortCode) -> 409
+    // 4. Database conflict (e.g., duplicate shortCode) -> 409
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ProblemDetail handleConflict(DataIntegrityViolationException ex) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(
@@ -70,7 +71,21 @@ public class GlobalExceptionHandler {
         return problem;
     }
 
-    // 4. Catch-all for unexpected bugs / runtime exceptions -> 500
+    // 5. HTTP method not supported -> 405
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ProblemDetail handleMethodNotSupported(HttpRequestMethodNotSupportedException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+            HttpStatus.METHOD_NOT_ALLOWED,
+            String.format("Method '%s' is not supported. Supported methods: %s",
+                ex.getMethod(),
+                ex.getSupportedHttpMethods() != null ? ex.getSupportedHttpMethods() : "[]")
+        );
+        problem.setTitle("Method Not Allowed");
+        problem.setProperty("timestamp", Instant.now());
+        return problem;
+    }
+
+    // 6. Catch-all for unexpected bugs / runtime exceptions -> 500
     @ExceptionHandler(Exception.class)
     public ProblemDetail handleUnhandledException(Exception ex) {
         String errorId = UUID.randomUUID().toString();
