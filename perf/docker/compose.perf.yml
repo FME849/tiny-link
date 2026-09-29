@@ -1,0 +1,23 @@
+services:
+  mysql-perf:
+    image: mysql:latest
+    container_name: tinylink_mysql_perf
+    environment:
+      - MYSQL_DATABASE=tinylink_perf
+      - MYSQL_ROOT_PASSWORD=perfsecret
+      - MYSQL_USER=admin
+      - MYSQL_PASSWORD=secret
+    ports:
+      - "3307:3306"
+    command: >
+      --innodb-buffer-pool-size=${INNODB_BUFFER_POOL_SIZE:-32M}
+      --innodb-buffer-pool-load-at-startup=OFF
+      --max-connections=300
+      --local-infile=1
+    volumes:
+      - ./init-schema.sql:/docker-entrypoint-initdb.d/01-init.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uadmin", "-psecret"]
+      interval: 3s
+      timeout: 3s
+      retries: 10

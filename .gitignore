@@ -37,3 +37,29 @@ build/
 .env.local
 .env.*.local
 !.env.example
+
+### Apache JMeter Performance Tests ###
+# 1. Execution results and sample logs
+*.jtl
+*.jtl.gz
+
+# 2. JMeter runtime logs
+jmeter.log
+jmeter.log.*
+
+# 3. Generated HTML reports & results directories
+perf/jmeter/results/
+perf/jmeter/reports/
+perf/jmeter/dashboard/
+
+# 4. Generated test data (keep directory structure via .gitkeep)
+perf/jmeter/data/*
+!perf/jmeter/data/.gitkeep
+
+# 5. JVM memory & crash dumps
+*.hprof
+hs_err_pid*.log
+
+# 6. Python seeder cache
+__pycache__/
+*.pyc
