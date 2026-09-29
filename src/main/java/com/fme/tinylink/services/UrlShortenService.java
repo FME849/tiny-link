@@ -1,6 +1,7 @@
 package com.fme.tinylink.services;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.fme.tinylink.models.UrlMapping;
 import com.fme.tinylink.repository.UrlRepository;
@@ -28,8 +29,12 @@ public class UrlShortenService {
         return repository.save(model);
     }
 
+    @Transactional
     public UrlMapping getDataByShortCode(String shortCode) {
-        return repository.findByShortCode(shortCode)
+        UrlMapping mapping = repository.findByShortCode(shortCode)
                 .orElseThrow(() -> new ResourceNotFoundException("Short code not found"));
+
+        repository.increaseCountByShortCode(shortCode);
+        return mapping;
     }
 }
