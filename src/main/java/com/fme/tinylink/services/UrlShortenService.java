@@ -39,8 +39,12 @@ public class UrlShortenService {
         idGenerator.setWorkerId(1);
         Long nextId = idGenerator.nextId();
         String shortCode = Base62Encoder.encode(nextId);
+
         UrlMapping model = new UrlMapping(shortCode, longUrl);
-        return repository.save(model);
+        UrlMapping saved = repository.save(model);
+
+        redisTemplate.opsForValue().set(PREFIX_URL + shortCode, longUrl, cacheProperties.urlTtl());
+        return saved;
     }
 
     public String getLongUrlByShortCode(String shortCode) {

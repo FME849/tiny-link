@@ -11,3 +11,8 @@ spring:
         '[format_sql]': true
 
 debug: true
+
+tinylink:
+  cache:
+    url-ttl: ${CACHE_TTL:7d}
+    null-ttl: ${NULL_CACHE_TTL:2m}

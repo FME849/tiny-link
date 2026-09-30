@@ -9,7 +9,9 @@ import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.MySQLContainer;
+import org.testcontainers.utility.DockerImageName;
 
 import java.io.IOException;
 import java.net.HttpURLConnection;
@@ -18,12 +20,19 @@ import java.net.HttpURLConnection;
 @AutoConfigureTestRestTemplate
 public abstract class AbstractIntegrationTest {
 
-    @ServiceConnection
+    @ServiceConnection(name = "mysql")
     protected static final MySQLContainer<?> mysql;
+
+    @ServiceConnection(name = "redis")
+    protected static final GenericContainer<?> redis;
 
     static {
         mysql = new MySQLContainer<>("mysql:8.0");
         mysql.start();
+
+        redis = new GenericContainer<>(DockerImageName.parse("redis:7-alpine"));
+        redis.withExposedPorts(6379);
+        redis.start();
     }
 
     @LocalServerPort
