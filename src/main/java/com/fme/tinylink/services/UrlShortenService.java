@@ -37,4 +37,8 @@ public class UrlShortenService {
         repository.increaseCountByShortCode(shortCode);
         return mapping;
     }
+
+    public String getLongUrlByShortCode(String shortCode) {
+        return "";
+    }
 }
