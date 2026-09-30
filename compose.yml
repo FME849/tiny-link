@@ -9,3 +9,15 @@ services:
       - MYSQL_USER=admin
     ports:
       - "3306:3306"
+
+  redis:
+    image: redis:7-alpine
+    container_name: tinylink_redis
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+
+volumes:
+  redis_data:

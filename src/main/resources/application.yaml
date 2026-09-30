@@ -21,3 +21,9 @@ server:
   port: 8080
 
 debug: false
+
+## Custom environment
+tinylink:
+  cache:
+    url-ttl: ${CACHE_TTL:7d}
+    null-ttl: ${NULL_CACHE_TTL:2m}
