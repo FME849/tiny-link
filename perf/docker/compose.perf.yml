@@ -21,3 +21,15 @@ services:
       interval: 3s
       timeout: 3s
       retries: 10
+
+  redis-perf:
+    image: redis:7-alpine
+    container_name: tinylink_redis_perf
+    ports:
+      - "6380:6379"
+    command: ["redis-server", "--appendonly", "no", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 2s
+      retries: 10

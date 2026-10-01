@@ -51,14 +51,15 @@ if command -v jmeter >/dev/null 2>&1; then
     echo ">>> [Step 5/6] Exporting hot and cold datasets..."
     "${SCRIPT_DIR}/export-datasets.sh" 20000 10000
 
-    # Cold Cache Simulation (flush in-memory buffer pool before read test)
+    # Cold Cache Simulation (flush Redis and in-memory buffer pool before read test)
     echo ""
-    echo ">>> Simulating Cold Cache: Restarting MySQL container (buffer pool reload disabled)..."
+    echo ">>> Simulating Cold Cache: Flushing Redis cache and restarting MySQL container..."
+    docker exec -i tinylink_redis_perf redis-cli flushall >/dev/null 2>&1 || true
     docker restart tinylink_mysql_perf >/dev/null
     until [ "$(docker inspect --format='{{.State.Health.Status}}' tinylink_mysql_perf 2>/dev/null)" = "healthy" ]; do
         sleep 1
     done
-    echo "    MySQL is back online with a 100% cold cache."
+    echo "    MySQL and Redis are ready with a 100% cold cache."
 
     # Phase 3: Read & Mixed Load Test (5 minutes)
     echo ""

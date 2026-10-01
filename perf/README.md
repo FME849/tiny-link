@@ -9,10 +9,10 @@ This directory contains all performance testing assets, Docker environments, dat
 ```
 perf/
 ├── docker/
-│   ├── compose.perf.yml        # Isolated MySQL on port 3307 (configurable buffer pool, cold-cache restart enabled)
+│   ├── compose.perf.yml        # Isolated MySQL on :3307 and Redis on :6380 (cold-cache restart & LRU eviction)
 │   └── init-schema.sql         # Base DDL for url_mapping
 ├── scripts/
-│   ├── setup-env.sh            # Starts perf container and waits for MySQL healthcheck
+│   ├── setup-env.sh            # Starts perf containers and waits for MySQL + Redis healthchecks
 │   ├── seed-data.py            # High-speed Python seeder (~1.2s for 80k authentic Snowflake Base62 IDs)
 │   ├── seed-data.sh            # Shell wrapper for seeder (supports Python or Spring profile)
 │   ├── export-datasets.sh      # Exports hot_codes.csv (20k newest) & cold_codes.csv (10k historical)
@@ -38,8 +38,9 @@ In real production, datasets overflow server RAM. In `compose.perf.yml`, `--inno
   ```
 
 ### 2. Cold Cache Testing
-MySQL 8.0 normally auto-reloads its cache on startup. We configured `--innodb-buffer-pool-load-at-startup=OFF`. Restarting the container guarantees a **100% cold cache**:
+MySQL 8.0 normally auto-reloads its cache on startup. We configured `--innodb-buffer-pool-load-at-startup=OFF`. To simulate a **100% cold cache**, the suite flushes Redis and restarts the MySQL container:
 ```bash
+docker exec -i tinylink_redis_perf redis-cli flushall
 docker restart tinylink_mysql_perf
 ```
 

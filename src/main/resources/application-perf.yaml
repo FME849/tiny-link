@@ -18,5 +18,17 @@ spring:
       ddl-auto: update
     show-sql: false
 
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6380}
+      timeout: 2000ms
+
 server:
   port: 8080
+
+tinylink:
+  cache:
+    url-ttl: ${CACHE_TTL:7d}
+    null-cache-ttl: ${NULL_CACHE_TTL:2m}
+
