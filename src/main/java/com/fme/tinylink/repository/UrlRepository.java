@@ -13,6 +13,6 @@ public interface UrlRepository extends JpaRepository<UrlMapping, String> {
     public Optional<UrlMapping> findByShortCode(String shortCode);
 
     @Modifying
-    @Query("UPDATE UrlMapping u SET u.count = u.count + 1 WHERE u.shortCode = :shortCode")
-    public int increaseCountByShortCode(@Param ("shortCode") String shortCode);
+    @Query("UPDATE UrlMapping u SET u.count = u.count + :delta WHERE u.shortCode = :shortCode")
+    public int increaseCountByDelta(@Param("shortCode") String shortCode, @Param("delta") int delta);
 }

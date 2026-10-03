@@ -47,10 +47,10 @@ public class UrlShortenController {
     
     @GetMapping("/{shortCode}")
     public ResponseEntity<Void> redirectToUrl(@PathVariable String shortCode) {
-        UrlMapping entity = services.getDataByShortCode(shortCode);
+        String longUrl = services.getLongUrlByShortCode(shortCode);
         return ResponseEntity
                 .status(HttpStatus.FOUND)
-                .header("Location", entity.getLongURL())
+                .header("Location", longUrl)
                 .build();
     }
 }

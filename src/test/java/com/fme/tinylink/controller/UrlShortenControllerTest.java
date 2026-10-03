@@ -1,4 +1,4 @@
-package com.fme.tinylink;
+package com.fme.tinylink.controller;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -6,12 +6,15 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
+import com.fme.tinylink.AbstractIntegrationTest;
 import com.fme.tinylink.dto.ShortenUrlRequest;
 import com.fme.tinylink.dto.ShortenUrlResponse;
 import com.fme.tinylink.repository.UrlRepository;
+import com.fme.tinylink.services.UrlShortenService;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -19,6 +22,9 @@ class UrlShortenControllerTest extends AbstractIntegrationTest {
 	
 	@Autowired 
 	private UrlRepository urlRepository;
+
+	@Autowired
+	private StringRedisTemplate redisTemplate;
 
 	@AfterEach
 	void cleanup() {
@@ -62,4 +68,21 @@ class UrlShortenControllerTest extends AbstractIntegrationTest {
 		assertThat(postEntity.getHeaders().getLocation()).isNull();
 	}
 
+	@Test
+	void shouldCacheInRedisAndIncrementCounterOnRedirect() {
+		String longUrl = "https://example.com";
+		ShortenUrlRequest body = new ShortenUrlRequest(longUrl);
+		ResponseEntity<ShortenUrlResponse> postRes = restTemplate.postForEntity(BASE_API_URL + "/url", body, ShortenUrlResponse.class);
+		String shortUrl = postRes.getBody().shortUrl();
+		String shortCode = shortUrl.substring(shortUrl.lastIndexOf("/") + 1);
+
+		String cachedUrl = redisTemplate.opsForValue().get(UrlShortenService.PREFIX_URL + shortCode);
+		assertThat(cachedUrl).isEqualTo(longUrl);
+
+		restTemplate.getForEntity(shortUrl, Void.class);
+		restTemplate.getForEntity(shortUrl, Void.class);
+
+		String clickCount = redisTemplate.opsForValue().get(UrlShortenService.PREFIX_CLICK + shortCode);
+		assertThat(clickCount).isEqualTo("2");
+	}
 }
