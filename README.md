@@ -1,126 +1,118 @@
 # TinyLink
 
-TinyLink is a URL shortener backend built with Spring Boot and Java 25. The project is a hands-on project in test-driven development (TDD), layered architecture, and containerized testing.
+TinyLink is a URL shortener backend built with Spring Boot and Java 25. The project focuses on test-driven development (TDD), caching patterns, and high-concurrency design using MySQL, Redis, and Testcontainers.
 
-## Features
+Live demo: [https://tinylink-9lxg.onrender.com](https://tinylink-9lxg.onrender.com)
+
+## What it does
 
 - Shortens long URLs into compact alphanumeric codes.
-- Redirects short links to the original destination via HTTP 302.
-- Stores link records in MySQL using Spring Data JPA.
-- Runs integration tests against a real MySQL container with Testcontainers.
-- Automates test execution on push using GitHub Actions.
-
-## Development workflow (TDD)
-
-The codebase was developed test-first using the Red-Green-Refactor cycle:
-
-1. **Red**: Define the API contract in a test before writing production code. For example, tests assert `201 Created` with a `Location` header on valid input, `302 Found` for redirects, and `400 Bad Request` on empty payloads.
-2. **Green**: Write the minimal controller, service, or repository code needed to satisfy the test.
-3. **Refactor**: Clean up implementation details and extract utilities while keeping the test suite green.
-
-### Testing strategy
-
-Integration tests in [`UrlShortenControllerTest`](/src/test/java/com/fme/tinylink/UrlShortenControllerTest.java) use `@SpringBootTest` and Testcontainers (`testcontainers-mysql`). Running against a real MySQL container avoids dialect, indexing, and constraint quirks that often slip through when using in-memory databases like H2.
-
-Key test cases include:
-- `createAndRetrieveShortenUrlTest`: Confirms URL creation returns HTTP 201, verifies the `Location` header, and checks that a GET request to the short link redirects with HTTP 302.
-- `missingOrIncorrectFormatLongUrlTest`: Confirms that invalid requests return HTTP 400.
-
-## Engineering choices
-
-- **Layered structure**: Controllers manage HTTP mapping and status codes, services coordinate domain logic, and repositories handle database operations through Spring Data JPA.
-- **Immutable DTOs**: Request and response bodies use Java 25 records (`ShortenUrlRequest` and `ShortenUrlResponse`) to keep data transfer objects simple and immutable.
-- **ID generation**: A custom Snowflake ID generator produces unique 64-bit numbers, which `Base62Encoder` converts into alphanumeric short codes.
-- **CI pipeline**: A GitHub Actions workflow (`deploy.yml`) spins up a MySQL service container and executes `./mvnw clean test` on every push.
+- Redirects short links to destination URLs with an HTTP 302 status.
+- Caches short code lookups in Redis using a cache-aside pattern with TTL.
+- Caches negative lookups to prevent cache penetration on missing links.
+- Tracks link clicks in Redis atomically and flushes counters to MySQL in scheduled batches.
+- Exposes interactive OpenAPI documentation via Swagger UI.
+- Runs integration tests against isolated MySQL and Redis containers using Testcontainers.
+- Builds and packages container images automatically on release via GitHub Actions.
 
 ## Architecture
 
 ```
 [ Client / Browser ]
          |
-         v  (HTTP / REST)
-+---------------------------------------------------------+
-|            Spring Boot Application (Java 25)            |
-|                                                         |
-|  [ UrlShortenController ]                               |
-|         |                                               |
-|         v                                               |
-|  [ UrlShortenService ]                                  |
-|     |-- [ SnowflakeIdGenerator ]                        |
-|     `-- [ Base62Encoder ]                               |
-|                                                         |
-|  [ UrlRepository (Spring Data JPA) ]                    |
-+---------------------------------------------------------+
-         |
-         v  (JDBC)
-+------------------+
-|  MySQL Database  |
-| (url_data table) |
-+------------------+
+         v
+[ Spring Boot Application (Java 25) ]
+   |-- RootController          -> Redirects / to /swagger-ui.html
+   |-- UrlShortenController    -> Handles /api/v1/url and /{shortCode}
+   |-- UrlShortenService       -> Core shortening and lookup logic
+   |     |-- SnowflakeIdGenerator -> Generates 64-bit numeric IDs
+   |     `-- Base62Encoder        -> Encodes numbers into alphanumeric slugs
+   |-- ClickCountSyncScheduler -> Periodic task flushing click counts
+   `-- GlobalExceptionHandler  -> Formats errors as RFC 7807 ProblemDetail
+         |                     |
+         v                     v
+   [ Redis 7 ]           [ MySQL 8 ]
+   - url:{code} (cache)  - url_mapping table
+   - clicks:{code}
 ```
 
-### Tech stack
+### Request flow
+
+1. **Shorten URL (`POST /api/v1/url`)**:
+   - The controller validates the incoming URL format (`@NotBlank`, `@Pattern`, `@URL`).
+   - `SnowflakeIdGenerator` generates a unique 64-bit ID, which `Base62Encoder` converts into a short string.
+   - The mapping is saved to MySQL (`url_mapping` table).
+   - The long URL is written to Redis (`url:<shortCode>`) with a 7-day TTL.
+   - The API returns `201 Created` with a `Location` header and payload.
+
+2. **Redirect (`GET /{shortCode}`)**:
+   - The service checks Redis for `url:<shortCode>`.
+   - **Cache hit**: If the value is the `$$NOT_FOUND$$` sentinel, it returns a 404 immediately. Otherwise, it increments `clicks:<shortCode>` in Redis and issues an HTTP 302 redirect.
+   - **Cache miss**: The service queries MySQL. If found, it populates Redis with a 7-day TTL, increments the Redis click counter, and redirects. If not found in MySQL, it writes `$$NOT_FOUND$$` to Redis with a 2-minute TTL to shield the database from repeated misses, then returns 404.
+
+3. **Click sync (`ClickCountSyncScheduler`)**:
+   - Every 30 seconds, a background job scans Redis for `clicks:*` keys.
+   - It reads and clears each count atomically using `GETDEL`, then applies the delta to MySQL in a single transaction. This keeps write locks off the redirect path.
+
+## Tech stack
 
 - **Runtime**: Java 25
-- **Framework**: Spring Boot 4 (Spring MVC, Spring Data JPA, Validation)
+- **Framework**: Spring Boot 4 (Spring MVC, Spring Data JPA, Spring Validation)
 - **Database**: MySQL 8.x
-- **Testing**: JUnit 5, AssertJ, Spring Boot Test, Testcontainers
-- **Local environment**: Docker & Docker Compose
+- **Cache**: Redis 7
+- **API Docs**: SpringDoc OpenAPI / Swagger UI
+- **Testing**: JUnit 5, AssertJ, Spring Boot Test, Testcontainers (MySQL + Redis)
+- **Containerization**: Docker, Docker Compose, GitHub Container Registry (GHCR)
 - **CI/CD**: GitHub Actions
 
 ## Project structure
 
 ```text
 tinylink/
-|-- .github/
-|   `-- workflows/
-|       `-- deploy.yml                 # CI/CD workflow running tests on JDK 25 & Docker
+|-- .github/workflows/
+|   `-- deploy.yml                 # CI/CD: test, build JAR, push GHCR image
+|-- perf/                          # Standalone load-testing environment
+|   |-- docker/                    # Isolated MySQL and Redis setup for perf
+|   |-- jmeter/                    # Test plans (.jmx) and output dashboards
+|   `-- scripts/                   # Seeder and test runner scripts
 |-- src/
-|   |-- main/
-|   |   |-- java/com/fme/tinylink/
-|   |   |   |-- base62/
-|   |   |   |   `-- Base62Encoder.java         # Base62 encoding utility
-|   |   |   |-- controllers/
-|   |   |   |   `-- UrlShortenController.java  # REST endpoints & redirect controller
-|   |   |   |-- dto/
-|   |   |   |   |-- ShortenUrlRequest.java     # Request record DTO
-|   |   |   |   `-- ShortenUrlResponse.java    # Response record DTO
-|   |   |   |-- exception/
-|   |   |   |   `-- ResourceNotFoundException.java
-|   |   |   |-- models/
-|   |   |   |   `-- UrlData.java               # JPA Entity for URL records
-|   |   |   |-- repository/
-|   |   |   |   `-- UrlRepository.java         # Spring Data JPA repository
-|   |   |   |-- services/
-|   |   |   |   `-- UrlShortenService.java     # Core business logic
-|   |   |   |-- snowflake/
-|   |   |   |   `-- SnowflakeIdGenerator.java  # ID generator
-|   |   |   `-- TinyLinkApplication.java       # Spring Boot main entry point
-|   |   `-- resources/
-|   |       `-- application.yaml               # Datasource & JPA configuration
-|   `-- test/
-|       `-- java/com/fme/tinylink/
-|           `-- UrlShortenControllerTest.java  # Controller integration tests
-|-- compose.yml                                # Docker Compose for local MySQL
-|-- pom.xml                                    # Maven project configuration
-`-- README.md
+|   |-- main/java/com/fme/tinylink/
+|   |   |-- base62/                # Base62 conversion
+|   |   |-- config/                # Redis and web configuration
+|   |   |-- controllers/           # REST endpoints and root redirect
+|   |   |-- dto/                   # Request/response records
+|   |   |-- exception/             # ProblemDetail exception advice
+|   |   |-- models/                # UrlMapping JPA entity
+|   |   |-- repository/            # Spring Data JPA repository
+|   |   |-- scheduler/             # Click count background synchronizer
+|   |   |-- services/              # URL shortening and caching logic
+|   |   `-- snowflake/             # 64-bit Snowflake ID generator
+|   `-- test/                      # Controller and service integration tests
+|-- compose.yml                    # Local MySQL and Redis containers
+|-- Dockerfile                     # Multi-stage container build (Temurin 25)
+`-- pom.xml                        # Maven dependencies
 ```
 
 ## Services and ports
 
-| Service | Address / Port | Description |
+| Service | Address / Port | Notes |
 | :--- | :--- | :--- |
-| Backend API | `http://localhost:8080` | Spring Boot REST API |
-| MySQL Database | `localhost:3306` | MySQL container (`tinylinkdb`) |
+| Application API | `http://localhost:8080` | Local REST API |
+| Swagger UI | `http://localhost:8080/swagger-ui.html` | Root `/` redirects here |
+| Live Demo | [tinylink-9lxg.onrender.com](https://tinylink-9lxg.onrender.com) | Hosted on Render |
+| MySQL | `localhost:3306` | Database (`tinylinkdb`) |
+| Redis | `localhost:6379` | Cache and click counters |
 
 ## Quick start
 
 ### Prerequisites
-- Java 25 (e.g., Eclipse Temurin JDK 25)
+- Java 25
 - Docker and Docker Compose
 - Git
 
-### 1. Start MySQL
+### 1. Start local dependencies
+Start MySQL and Redis in the background:
+
 ```bash
 docker compose up -d
 ```
@@ -129,9 +121,12 @@ docker compose up -d
 ```bash
 ./mvnw spring-boot:run
 ```
-The server runs on port `8080`.
+
+The application starts on port `8080`. Open `http://localhost:8080` in your browser to view the Swagger UI.
 
 ### 3. Run the tests
+Tests spin up ephemeral MySQL and Redis containers via Testcontainers:
+
 ```bash
 ./mvnw clean test
 ```
@@ -140,64 +135,87 @@ The server runs on port `8080`.
 
 ### 1. Shorten URL
 
-Creates a short URL from an original destination link.
-
 ```http
 POST /api/v1/url
 Content-Type: application/json
 
 {
-  "longUrl": "https://example.com/very/long/url"
+  "longUrl": "https://example.com/my-long-url"
 }
 ```
 
 **Response (`201 Created`):**
 ```json
 {
-  "id": 18273918237192,
   "shortUrl": "http://localhost:8080/b9XcK1",
-  "longUrl": "https://example.com/very/long/url"
+  "longUrl": "https://example.com/my-long-url"
 }
 ```
 *Header:* `Location: http://localhost:8080/b9XcK1`
 
-### 2. Redirect to original URL
+If the input is blank, lacks `http://` or `https://`, or is not a valid URL, the API returns `400 Bad Request` with an RFC 7807 error payload:
 
-Redirects to the target URL via HTTP 302.
+```json
+{
+  "type": "about:blank",
+  "title": "Bad Request",
+  "status": 400,
+  "detail": "Validation failed for one or more fields",
+  "invalid_params": [
+    {
+      "field": "longUrl",
+      "message": "URL must start with http:// or https://"
+    }
+  ],
+  "timestamp": "2026-10-05T10:00:00Z"
+}
+```
+
+### 2. Redirect to original URL
 
 ```http
 GET /{shortCode}
 ```
 
 **Response (`302 Found`):**
-*Header:* `Location: https://example.com/very/long/url`
+*Header:* `Location: https://example.com/my-long-url`
 
-## Request flow
+If the link does not exist, it returns `404 Not Found` with a ProblemDetail body:
 
-### URL shortening
-1. A client sends `POST /api/v1/url` with `longUrl`.
-2. `UrlShortenService` calls `SnowflakeIdGenerator.nextId()` for a unique numeric ID.
-3. `Base62Encoder.encode(id)` turns the number into an alphanumeric string.
-4. `UrlRepository` saves the record to MySQL.
-5. The controller returns `201 Created` with the short URL in both the response body and `Location` header.
+```json
+{
+  "type": "about:blank",
+  "title": "Resource Not Found",
+  "status": 404,
+  "detail": "Short code not found",
+  "timestamp": "2026-10-05T10:00:00Z"
+}
+```
 
-### Redirection
-1. A client visits `GET /{shortCode}`.
-2. `UrlShortenController` queries `UrlRepository` for the matching short code.
-3. If found, the controller returns `302 Found` with the original URL in the `Location` header.
-4. If not found, it returns `404 Not Found`.
+### 3. API documentation
+ 
+Visiting `GET /` redirects directly to `/swagger-ui.html`, where all endpoints can be inspected and called interactively. In the live deployment, visit [https://tinylink-9lxg.onrender.com](https://tinylink-9lxg.onrender.com).
+
+## Performance testing
+
+The repository includes a dedicated performance suite in the `perf/` directory, designed to test write throughput and cache-aside reads under memory pressure.
+
+It features:
+- An isolated Docker setup running MySQL on port 3307 and Redis on 6380 (`perf/docker/compose.perf.yml`).
+- A high-speed dataset seeder generating authentic Snowflake Base62 entries.
+- JMeter plans for a 20,000-write load test and an 80/20 hot/cold mixed read test with latency injection.
+
+To run the complete automated performance suite:
+
+```bash
+./perf/scripts/run-perf-suite.sh
+```
+
+See [perf/README.md](perf/README.md) and [docs/PERFORMANCE_TEST_PLAN.md](docs/PERFORMANCE_TEST_PLAN.md) for full setup instructions and metric collection.
 
 ## Roadmap
 
-- [ ] Redis caching for short code lookups
+- [ ] Web frontend (SPA)
 - [ ] Distributed rate limiting
-- [ ] Click analytics and redirection metrics
-- [ ] Web frontend
-- [ ] Multi-stage Dockerfile and full-stack Docker Compose
-
----
-
-## Deployment
-
-For step-by-step instructions on deploying TinyLink to Render with Aiven MySQL and automated CI/CD via GitHub Actions and GHCR, refer to the [Production Deployment Guide](file:///Users/fme849/Personal/Project/tinylink/docs/DEPLOYMENT.md).
-
+- [ ] Custom alias support
+- [ ] User accounts and link management dashboard
