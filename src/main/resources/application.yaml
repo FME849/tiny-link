@@ -2,6 +2,10 @@ spring:
   application:
     name: tinylink
 
+  data:
+    redis:
+      url: ${SPRING_DATA_REDIS_URL:redis://localhost:6379}
+
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/tinylinkdb}
     username: ${SPRING_DATASOURCE_USERNAME:admin}
