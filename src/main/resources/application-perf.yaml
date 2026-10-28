@@ -3,15 +3,15 @@ spring:
     name: tinylink-perf
 
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3307/tinylink_perf?rewriteBatchedStatements=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://127.0.0.1:3307/tinylink_perf?rewriteBatchedStatements=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
     username: ${SPRING_DATASOURCE_USERNAME:admin}
     password: ${SPRING_DATASOURCE_PASSWORD:secret}
     driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
-      maximum-pool-size: 30
-      minimum-idle: 10
+      maximum-pool-size: 5
+      minimum-idle: 2
       idle-timeout: 30000
-      connection-timeout: 5000
+      connection-timeout: 250
 
   jpa:
     hibernate:
@@ -20,12 +20,18 @@ spring:
 
   data:
     redis:
-      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      url: redis://127.0.0.1:6380
+      host: ${SPRING_DATA_REDIS_HOST:127.0.0.1}
       port: ${SPRING_DATA_REDIS_PORT:6380}
       timeout: 2000ms
 
 server:
   port: 8080
+  tomcat:
+    threads:
+      max: 20
+      min-spare: 5
+    accept-count: 20
 
 tinylink:
   cache:

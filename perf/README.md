@@ -17,12 +17,14 @@ perf/
 │   ├── seed-data.sh            # Shell wrapper for seeder (supports Python or Spring profile)
 │   ├── export-datasets.sh      # Exports hot_codes.csv (20k newest) & cold_codes.csv (10k historical)
 │   ├── teardown-env.sh         # Wipes containers and volumes (docker compose down -v)
-│   └── run-perf-suite.sh       # Master pipeline orchestrator (generates Write & Read dashboards)
+│   ├── run-perf-suite.sh       # Master pipeline orchestrator (generates Write & Read dashboards)
+│   └── run-penetration-test.sh # DDoS Cache Penetration attack runner with post-telemetry summary
 ├── jmeter/
-│   ├── write_test_20k.jmx      # 20k POST /api/v1/url requests (50 threads x 400 loops)
-│   ├── read_mixed_test.jmx     # 80% Hot Reads, 20% Cold Reads, 5% 404s, latency injection & concurrent writes
-│   ├── data/                   # Target directory for exported CSV files
-│   └── results/                # Output directory for JTL files and HTML dashboards
+│   ├── write_test_20k.jmx          # 20k POST /api/v1/url requests (50 threads x 400 loops)
+│   ├── read_mixed_test.jmx         # 80% Hot Reads, 20% Cold Reads, 5% 404s, latency injection & concurrent writes
+│   ├── cache_penetration_ddos.jmx  # DDoS Cache Penetration test plan with dynamic unique shortcodes & Canary probe
+│   ├── data/                       # Target directory for exported CSV files
+│   └── results/                    # Output directory for JTL files and HTML dashboards
 └── README.md
 ```
 
@@ -137,3 +139,29 @@ Stops the container and wipes all test data cleanly:
 ```bash
 ./perf/scripts/teardown-env.sh
 ```
+
+---
+
+## Cache Penetration DDoS & High Availability Testing
+
+TinyLink includes a dedicated DDoS stress test specifically engineered to evaluate backend High Availability under a **Cache Penetration attack** (where each request queries a brand-new, dynamically generated shortcode that bypasses Redis null-caching).
+
+For full technical specifications, architecture diagrams, and post-mortem analysis, see **[`docs/CACHE_PENETRATION_DDOS_TEST.md`](../docs/CACHE_PENETRATION_DDOS_TEST.md)**.
+
+### Running the Penetration Test:
+```bash
+# 1. Start isolated perf containers
+./perf/scripts/setup-env.sh
+
+# 2. Launch Spring Boot with constrained RAM (simulating container limits)
+./mvnw spring-boot:run \
+  -Dspring-boot.run.profiles=perf \
+  -Dspring-boot.run.jvmArguments="-Xms48m -Xmx64m"
+
+# 3. Execute the DDoS penetration test (Threads, Duration in seconds, Rampup)
+./perf/scripts/run-penetration-test.sh 200 30 5
+
+# 4. View the generated HTML Dashboard
+open perf/jmeter/results/penetration_*/dashboard/index.html
+```
+
